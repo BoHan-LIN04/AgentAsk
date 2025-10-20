@@ -81,9 +81,6 @@ def parse_args():
     parser.add_argument('--rl-beta', type=float, default=0.01, help='KL regularization coefficient')
     parser.add_argument('--rl-epsilon', type=float, default=0.2, help='PPO clipping parameter')
     parser.add_argument('--rl-H', type=int, default=5, help='Sliding window size')
-
-    parser.add_argument('--grpo-num-samples', type=int, default=4, help='Number of trajectories to sample for GRPO')
-    parser.add_argument('--grpo-temperature', type=float, default=1.0, help='Sampling temperature for GRPO')
     
     args = parser.parse_args()
     return args
@@ -141,15 +138,14 @@ if __name__ == '__main__':
             lambda_R=args.rl_lambda_R,
             beta=args.rl_beta,
             epsilon=args.rl_epsilon,
-            H=args.rl_H,
-            num_samples=args.grpo_num_samples,
-            sample_temperature=args.grpo_temperature
+            H=args.rl_H
         )
+        
 
         if router.clarify_manager.mode == 'student':
             router.clarify_manager.online_rl = True
-            logger.info(f"Enabled online RL with GRPO: num_samples={args.grpo_num_samples}, temperature={args.grpo_temperature}")
-    
+            logger.info("Enabled online RL with E-GRPO for student mode")
+
     optimizer = torch.optim.Adam(router.parameters(), lr=args.lr)
     tasks = tasks_profile
     llms = llm_profile
@@ -264,6 +260,67 @@ if __name__ == '__main__':
             loss.backward()
             optimizer.step()
             
+         
+            for i, (query, result, answer, log_prob, cost) in enumerate(zip(queries, results, answers, log_probs, costs)):
+                predict_answer = MATH_get_predict(result)[0]
+                is_solved = str(predict_answer).strip()==str(answer).strip()
+                
+           
+                if clarify_enabled and router.clarify_manager and router.clarify_manager.mode == 'student':
+                    terminal_reward = args.rl_alpha_ans * (1.0 if is_solved else -1.0)
+                    
+       
+                    try:
+       
+                        baseline = total_solved / max(total_executed, 1) if total_executed > 0 else 0.5
+                        router.clarify_manager.e_grpo_update(
+                            terminal_reward=terminal_reward,
+                            baseline=baseline
+                        )
+                        logger.info(f"TERMINAL_REWARD batch={i_batch} index={i} reward={terminal_reward:.4f} baseline={baseline:.4f}")
+                    except Exception as e:
+                        logger.debug(f"Terminal E-GRPO update failed: {e}")
+                elif clarify_enabled and router.clarify_manager and router.clarify_manager.mode == 'llm':
+                    logger.debug(f"LLM_MODE: Skipping terminal reward calculation for batch={i_batch} index={i}")
+                
+                total_solved = total_solved + is_solved
+                total_executed = total_executed + 1
+                utility = is_solved - cost * args.cost_rate
+                utilities.append(utility)
+                is_solved_list.append(is_solved)
+                answer_loss = -log_prob * utility
+                answers_loss.append(answer_loss)
+                logger.debug(f"Raw Result: {result}")
+                logger.debug(f"Predict: {predict_answer}")
+                logger.debug(f"Truth: {answer}")
+                logger.debug(f"Cost: {cost}")
+                logger.debug(f"is_solved: {is_solved}")
+                if not is_solved:
+                    cid = new_case_id()
+                    log_text = (f"[{cid}] Query: {query}\nPredict: {predict_answer}\nTruth: {answer}\nCost: {cost}\n")
+                    logger.info(f"ERROR_CASE_ID:{cid} {log_text}")
+                    info = {
+                        "id": cid,
+                        "query": query,
+                        "predict_answer": predict_answer,
+                        "truth": answer,
+                        "cost": float(cost) if hasattr(cost, 'item') else cost,
+                        "timestamp": datetime.utcnow().isoformat() + "Z",
+                        "log_file": log_file,
+                        "log_text": log_text
+                    }
+                    if args.error_mode == 'realtime':
+                        write_realtime_case(cid, info)
+                    elif args.error_mode == 'postindex':
+                        append_index(cid, info)
+            answer_loss = torch.stack(answers_loss).sum() / len(answers_loss)
+            vae_loss = vae_loss.mean()
+            is_solved_tensor = torch.tensor(is_solved_list, dtype=torch.float32, device=device).unsqueeze(1)  # shape: [N, 1]
+            # adjust_loss = ((1 - is_solved_tensor) * (router.num_determiner.max_agent - agents_num) + 0.25 * is_solved_tensor *  agents_num).mean()
+            loss = task_loss + answer_loss + vae_loss*0.001 # + adjust_loss
+            loss.backward()
+            optimizer.step()
+            
             accuracy = total_solved / total_executed
             logger.info(f"Batch time {time.time() - start_ts:.3f}")
             logger.info(f"Accuracy: {accuracy}")
@@ -292,6 +349,17 @@ if __name__ == '__main__':
         for query, result, answer, log_prob, cost in zip(queries, results, answers, log_probs, costs):
             predict_answer = MATH_get_predict(result)[0]
             is_solved = str(predict_answer)==str(answer)
+            
+
+            try:
+                if clarify_enabled and router.clarify_manager and router.clarify_manager.mode == 'student':
+                    terminal_reward = args.rl_alpha_ans * (1.0 if is_solved else -1.0)
+                    logger.info(f"TEST_TERMINAL_REWARD batch={i_batch} index={bi} reward={terminal_reward:.4f} solved={int(is_solved)}")
+                elif clarify_enabled and router.clarify_manager and router.clarify_manager.mode == 'llm':
+                    logger.debug(f"LLM_MODE: Skipping test terminal reward for batch={i_batch} index={bi}")
+            except Exception:
+                pass
+            
             total_solved = total_solved + is_solved
             total_executed = total_executed + 1
             utility = is_solved - cost * args.cost_rate
