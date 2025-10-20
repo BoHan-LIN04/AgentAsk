@@ -1,6 +1,6 @@
 # AgentAsk: Multi-Agent Systems Need to Ask
 
-##  Why AgentAsk?
+##  ❓ Why AgentAsk?
 AgentAsk brings **edge-level clarification** to multi-agent systems (MAS). It treats each inter-agent message as a potential failure point and inserts a **minimal necessary** question to prevent error cascades, improving reliability with low latency and cost.
 
 ![intro](assets/intro.png)
@@ -16,27 +16,49 @@ AgentAsk is a lightweight, plug-and-play clarifier that:
 ![pipeline](assets/pipline.png)
 
 
-
 ##  🧭 Quick Start
 
-### 🔑 Add API keys
+###  🔑 Configure API keys
 Add API keys in `template.env` and change its name to `.env`.
-
-###  Datasets
-Please download `GSM8K`, `HumanEval`, `MATH`, `MBPP`, `MMLU` and place them in the `Datasets` folder
-
-### run
-To run the code of phase 1, run the following command:
-
 ```bash
-bash scripts/run_sft.sh
+cp template.env .env
 ```
 
-To run the code of phase 2, run the following command:
+###  📦 Datasets
+Please download `GSM8K`, `HumanEval`, `MATH`, `MBPP`, `MMLU` and place them in the `Datasets` folder
+```bash
+Datasets/
+├─ gsm8k/         ── gsm8k.jsonl
+├─ humaneval/     ── humaneval-py.jsonl
+├─ MATH/          ── train/ , test/
+├─ mbpp/          ── mbpp.jsonl
+└─ MMLU/          ── data/
+```
 
+###  🚀 Run
+After setting `.env`, start with any dataset runner.
+If you have completed the above steps and want to start quickly, you can directly execute
 ```bash
 python Experiments\run_xxx.py
 ```
+
+### 🎚️ Train
+AgentAsk exposes three base modes:
+* none — original pipeline without clarification (baseline).
+* llm — clarification by a large model (heavy but strong).
+* student — clarification by our trained lightweight model.
+
+If you want to train a model from scratch，first run the command for sft:
+```bash
+bash scripts\run_sft.sh
+```
+
+If student and ClarifyManager.online_rl=True, then we can training with online RL(Otherwise → inference).
+Just edit the ClarifyManager and run:
+```bash
+python Experiments\run_xxx.py
+```
+
 
 
 
