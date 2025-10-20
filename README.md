@@ -3,7 +3,7 @@
 ##  Why AgentAsk?
 AgentAsk brings **edge-level clarification** to multi-agent systems (MAS). It treats each inter-agent message as a potential failure point and inserts a **minimal necessary** question to prevent error cascades, improving reliability with low latency and cost.
 
-![intro](assets/intro.pdf)
+![intro](assets/intro.png)
 
 ##  Method Overview
 AgentAsk is a lightweight, plug-and-play clarifier that:
@@ -13,7 +13,7 @@ AgentAsk is a lightweight, plug-and-play clarifier that:
 ![taxonomy](assets/taxonomy.png)
 * Decides **when/what/whom/how** to ask using a factored policy.
 * Trains in two stages: **Supervised Fine-Tuning (SFT)** from failure traces and **E-GRPO** reinforcement for accuracy–latency–cost trade-offs.
-![pipeline](assets/pipline.pdf)
+![pipeline](assets/pipline.png)
 
 
 
