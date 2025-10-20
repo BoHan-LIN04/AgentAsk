@@ -80,9 +80,6 @@ def parse_args():
     parser.add_argument('--rl-beta', type=float, default=0.01, help='KL regularization coefficient')
     parser.add_argument('--rl-epsilon', type=float, default=0.2, help='PPO clipping parameter')
     parser.add_argument('--rl-H', type=int, default=5, help='Sliding window size')
-
-    parser.add_argument('--grpo-num-samples', type=int, default=4, help='Number of trajectories to sample for GRPO')
-    parser.add_argument('--grpo-temperature', type=float, default=1.0, help='Sampling temperature for GRPO')
     
     args = parser.parse_args()
     return args
@@ -108,6 +105,7 @@ if __name__ == '__main__':
         task='humaneval', 
         prompt_dir='MAR/ClarifyPrompts'
     )
+    
 
     if clarify_enabled and router.clarify_manager:
         router.clarify_manager.rl_config(
@@ -118,16 +116,13 @@ if __name__ == '__main__':
             lambda_R=args.rl_lambda_R,
             beta=args.rl_beta,
             epsilon=args.rl_epsilon,
-            H=args.rl_H,
-            num_samples=args.grpo_num_samples,
-            sample_temperature=args.grpo_temperature
+            H=args.rl_H
         )
-        
-  
+
         if router.clarify_manager.mode == 'student':
             router.clarify_manager.online_rl = True
-            logger.info(f"Enabled online RL with GRPO: num_samples={args.grpo_num_samples}, temperature={args.grpo_temperature}")
-    
+            logger.info("Enabled online RL with E-GRPO for student mode")
+
     optimizer = torch.optim.Adam(router.parameters(), lr=args.lr)
     tasks = tasks_profile
     llms = llm_profile
@@ -206,7 +201,8 @@ if __name__ == '__main__':
             answers_loss = []
             is_solved_list = []
             pattern = r'```python.*```'
-            for query, result, test, log_prob, cost in zip(queries, results, tests, log_probs, costs):
+
+            for i, (query, result, test, log_prob, cost) in enumerate(zip(queries, results, tests, log_probs, costs)):
                 match = re.search(pattern, result, re.DOTALL|re.MULTILINE)
                 if match:
                     answer = match.group(0).lstrip("```python\n").rstrip("\n```")
@@ -214,6 +210,23 @@ if __name__ == '__main__':
                 else:
                     answer = ""
                     is_solved = 0
+
+                if clarify_enabled and router.clarify_manager and router.clarify_manager.mode == 'student':
+                    terminal_reward = args.rl_alpha_ans * (1.0 if is_solved else -1.0)
+
+                    try:
+
+                        baseline = total_solved / max(total_executed, 1) if total_executed > 0 else 0.5
+                        router.clarify_manager.e_grpo_update(
+                            terminal_reward=terminal_reward,
+                            baseline=baseline
+                        )
+                        logger.info(f"TERMINAL_REWARD batch={i_batch} index={i} reward={terminal_reward:.4f} baseline={baseline:.4f}")
+                    except Exception as e:
+                        logger.debug(f"Terminal E-GRPO update failed: {e}")
+                elif clarify_enabled and router.clarify_manager and router.clarify_manager.mode == 'llm':
+                    logger.debug(f"LLM_MODE: Skipping terminal reward calculation for batch={i_batch} index={i}")
+                
                 total_solved = total_solved + is_solved
                 total_executed = total_executed + 1
                 utility = is_solved - cost * args.cost_rate
@@ -273,13 +286,24 @@ if __name__ == '__main__':
 
         utilities = []
         pattern = r'```python.*```'
-        for query, result, test, log_prob, cost in zip(queries, results, tests, log_probs, costs):
+        for bi, (query, result, test, log_prob, cost) in enumerate(zip(queries, results, tests, log_probs, costs)):
             match = re.search(pattern, result, re.DOTALL|re.MULTILINE)
             if match:
                 answer = match.group(0).lstrip("```python\n").rstrip("\n```")
                 is_solved, _, _ = PyExecutor().execute(answer, [test], timeout=100)
             else:
                 is_solved = 0
+            
+
+            try:
+                if clarify_enabled and router.clarify_manager and router.clarify_manager.mode == 'student':
+                    terminal_reward = args.rl_alpha_ans * (1.0 if is_solved else -1.0)
+                    logger.info(f"TEST_TERMINAL_REWARD batch={i_batch} index={bi} reward={terminal_reward:.4f} solved={int(is_solved)}")
+                elif clarify_enabled and router.clarify_manager and router.clarify_manager.mode == 'llm':
+                    logger.debug(f"LLM_MODE: Skipping test terminal reward for batch={i_batch} index={bi}")
+            except Exception:
+                pass
+            
             total_solved = total_solved + is_solved
             total_executed = total_executed + 1
             utility = is_solved - cost * args.cost_rate
