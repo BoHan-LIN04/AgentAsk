@@ -1,0 +1,10 @@
+docx/
+logs/
+Datasets/MATH/*
+Datasets/MMLU/*
+__pycache__
+.env
+*.jsonl
+*.pth
+*.pyc
+*.csv

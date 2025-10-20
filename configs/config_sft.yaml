@@ -1,0 +1,23 @@
+model_name: "Qwen/Choose Your Model Here"
+output_dir: "outputs/Model Name"
+lr: 2e-3
+epochs: 3
+batch_size: 4
+grad_accum: 2
+max_len: 1024
+warmup_steps: 0
+seed: 42
+load_in_8bit: false
+train_data: "data/clarify_samples.jsonl"
+lora:
+  r: 4
+  alpha: 16
+  dropout: 0.05
+  target_modules: ["q_proj","v_proj"]
+loss:
+  lambda_ask: 1.0
+  type_weight_factor: 2.0
+  agent_weight_factor: 1.5
+  ask_weight_factor: 1.0
+dataset:
+  balance_need: true
