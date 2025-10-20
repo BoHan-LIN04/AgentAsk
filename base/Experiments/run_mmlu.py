@@ -72,6 +72,19 @@ def parse_args():
     parser.add_argument('--clarify-model', type=str, default='gpt-5')
     parser.add_argument('--clarify-student-path', type=str, default='Clarify/model.pt')
     parser.add_argument('--clarify-output', type=str, default='Clarify/mmlu.jsonl')
+
+    parser.add_argument('--rl-alpha-eff', type=float, default=1.0, help='Effectiveness reward weight')
+    parser.add_argument('--rl-alpha-fmt', type=float, default=0.5, help='Format reward weight')  
+    parser.add_argument('--rl-alpha-ans', type=float, default=2.0, help='Terminal answer reward weight')
+    parser.add_argument('--rl-lambda-sw', type=float, default=0.2, help='Sliding window penalty coefficient')
+    parser.add_argument('--rl-lambda-R', type=float, default=1.0, help='Global reward weight')
+    parser.add_argument('--rl-beta', type=float, default=0.01, help='KL regularization coefficient')
+    parser.add_argument('--rl-epsilon', type=float, default=0.2, help='PPO clipping parameter')
+    parser.add_argument('--rl-H', type=int, default=5, help='Sliding window size')
+
+    parser.add_argument('--grpo-num-samples', type=int, default=4, help='Number of trajectories to sample for GRPO')
+    parser.add_argument('--grpo-temperature', type=float, default=1.0, help='Sampling temperature for GRPO')
+    
     args = parser.parse_args()
     return args
 
@@ -108,7 +121,35 @@ if __name__ == '__main__':
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     router = MasRouter(max_agent=args.max_agent, device=device).to(device)
     clarify_enabled = (args.clarify != 'none')
-    router.clarify_manager = ClarifyManager(enabled=clarify_enabled, mode=args.clarify, model=args.clarify_model, student_model_path=args.clarify_student_path, output_path=args.clarify_output, task='mmlu', prompt_dir='MAR/ClarifyPrompts')
+    router.clarify_manager = ClarifyManager(
+        enabled=clarify_enabled, 
+        mode=args.clarify, 
+        model=args.clarify_model, 
+        student_model_path=args.clarify_student_path, 
+        output_path=args.clarify_output, 
+        task='mmlu', 
+        prompt_dir='MAR/ClarifyPrompts'
+    )
+    
+
+    if clarify_enabled and router.clarify_manager:
+        router.clarify_manager.rl_config(
+            alpha_eff=args.rl_alpha_eff,
+            alpha_fmt=args.rl_alpha_fmt,
+            alpha_ans=args.rl_alpha_ans,
+            lambda_sw=args.rl_lambda_sw,
+            lambda_R=args.rl_lambda_R,
+            beta=args.rl_beta,
+            epsilon=args.rl_epsilon,
+            H=args.rl_H,
+            num_samples=args.grpo_num_samples,
+            sample_temperature=args.grpo_temperature
+        )
+
+        if router.clarify_manager.mode == 'student':
+            router.clarify_manager.online_rl = True
+            logger.info(f"Enabled online RL with GRPO: num_samples={args.grpo_num_samples}, temperature={args.grpo_temperature}")
+    
     optimizer = torch.optim.Adam(router.parameters(), lr=args.lr)
     tasks = tasks_profile
     llms = llm_profile
