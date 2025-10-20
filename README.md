@@ -1,7 +1,7 @@
 # AgentAsk: Multi-Agent Systems Need to Ask
 
 ##  ❓ Why AgentAsk?
-AgentAsk brings **edge-level clarification** to multi-agent systems (MAS). It treats each inter-agent message as a potential failure point and inserts a **minimal necessary** question to prevent error cascades, improving reliability with low latency and cost.
+AgentAsk brings **edge-level clarification** to multi-agent systems (MAS). It treats each inter-agent message as a potential failure point that may case cascade errors and inserts a **minimal necessary** question to prevent error cascades, improving reliability with low latency and cost.
 
 ![intro](assets/intro.png)
 
