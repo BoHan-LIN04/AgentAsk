@@ -31,7 +31,7 @@ from MAR.clarify_manager import ClarifyManager
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 try:
-    # openai >= 1.0.0
+
     from openai import OpenAI as OpenAIClient
     openai_legacy = None
 except Exception:
@@ -85,7 +85,7 @@ def parse_args():
     parser.add_argument('--clarify-student-path', type=str, default='Clarify/model.pt')
     parser.add_argument('--clarify-output', type=str, default='Clarify/gsm8k.jsonl')
     
-    # E-GRPO 参数
+
     parser.add_argument('--rl-alpha-eff', type=float, default=1.0, help='Effectiveness reward weight')
     parser.add_argument('--rl-alpha-fmt', type=float, default=0.5, help='Format reward weight')  
     parser.add_argument('--rl-alpha-ans', type=float, default=2.0, help='Terminal answer reward weight')
@@ -94,8 +94,7 @@ def parse_args():
     parser.add_argument('--rl-beta', type=float, default=0.01, help='KL regularization coefficient')
     parser.add_argument('--rl-epsilon', type=float, default=0.2, help='PPO clipping parameter')
     parser.add_argument('--rl-H', type=int, default=5, help='Sliding window size')
-    
-    # GRPO 多轨迹采样参数
+
     parser.add_argument('--grpo-num-samples', type=int, default=4, help='Number of trajectories to sample for GRPO')
     parser.add_argument('--grpo-temperature', type=float, default=1.0, help='Sampling temperature for GRPO')
     
@@ -129,7 +128,7 @@ if __name__ == '__main__':
         prompt_dir='MAR/ClarifyPrompts'
     )
     
-    # 配置E-GRPO参数
+
     if clarify_enabled and router.clarify_manager:
         router.clarify_manager.rl_config(
             alpha_eff=args.rl_alpha_eff,
@@ -143,8 +142,7 @@ if __name__ == '__main__':
             num_samples=args.grpo_num_samples,
             sample_temperature=args.grpo_temperature
         )
-        
-        # 启用在线RL（仅student模式）
+
         if router.clarify_manager.mode == 'student':
             router.clarify_manager.online_rl = True
             logger.info(f"Enabled online RL with GRPO: num_samples={args.grpo_num_samples}, temperature={args.grpo_temperature}")
@@ -278,18 +276,17 @@ if __name__ == '__main__':
         optimizer.zero_grad()
         results, costs, log_probs, tasks_probs, vae_loss, agents_num = router.forward(queries, tasks, llms, reasonings, task_labels)
         utilities = []
-        # 计算终端奖励并触发E-GRPO更新
+
         for i, (result, true_answer, log_prob, cost) in enumerate(zip(results, answers, log_probs, costs)):
             predict_answer = gsm_get_predict(result)
             is_solved = float(predict_answer)==float(true_answer)
             
-            # 计算终端奖励 (Eq. 9) - 仅在student模式下有效
+
             if clarify_enabled and router.clarify_manager and router.clarify_manager.mode == 'student':
                 terminal_reward = args.rl_alpha_ans * (1.0 if is_solved else -1.0)
-                
-                # 为每个问题设置终端奖励
+
                 try:
-                    # 使用准确率作为baseline
+
                     baseline = total_solved / max(total_executed, 1) if total_executed > 0 else 0.5
                     router.clarify_manager.e_grpo_update(
                         terminal_reward=terminal_reward,
@@ -340,7 +337,7 @@ if __name__ == '__main__':
                     write_realtime_case(cid, info)
                 elif args.error_mode == 'postindex':
                     append_index(cid, info)
-                # none -> do nothing beyond logging marker
+
         accuracy = total_solved / total_executed
         logger.info(f"Batch time {time.time() - start_ts:.3f}")
         logger.info(f"Accuracy: {accuracy}")
