@@ -15,9 +15,6 @@ AgentAsk is a lightweight, plug-and-play clarifier that:
 * Trains in two stages: **Supervised Fine-Tuning (SFT)** from failure traces and **E-GRPO** reinforcement for accuracy–latency–cost trade-offs.
 ![pipeline](assets/pipline.pdf)
 
-## 📚 Paper[]
-[AgentAsk: Multi-Agent Systems Need to Ask](https://arxiv.org/abs/2305.09062)
-
 
 
 ##  🧭 Quick Start
@@ -41,16 +38,5 @@ To run the code of phase 2, run the following command:
 python Experiments\run_xxx.py
 ```
 
-## 📝 Citation
-If you find this work useful in your research, please consider citing:
 
-```bibtex
-@inproceedings{zhang2023agentask,
-  title={AgentAsk: Multi-Agent Systems Need to Ask},
-  author={Zhang, Zhiyuan and Li, Yifan and Wang, Zhenyu and Wang, Yuxuan and Liu, Yuxuan and Chen, Zhiyuan and Li, Jie},
-  booktitle={Proceedings of the 61st Annual Meeting of the Association for Computational Linguistics},
-  pages={6317--6328},
-  year={2023}
-}
-```
 
