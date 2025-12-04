@@ -86,8 +86,24 @@ class AoPSDataset:
         self.cache_dir = cache_dir
         self.data: List[Dict[str, Any]] = []
         self._raw_dataset = None
+        self._cached_pairs: Optional[List[Dict[str, str]]] = None
         
         random.seed(seed)
+    
+    @staticmethod
+    def _extract_first_solution(solutions: Any) -> str:
+        """
+        Extract the first solution from a list of solutions.
+        
+        Args:
+            solutions: A list of solutions or a single solution string
+            
+        Returns:
+            The first solution as a string
+        """
+        if isinstance(solutions, list) and solutions:
+            return solutions[0]
+        return str(solutions) if solutions else ""
     
     def load(self) -> "AoPSDataset":
         """
@@ -156,16 +172,23 @@ class AoPSDataset:
             raise IndexError(f"Index {idx} out of range [0, {len(self.data)})")
         return self.data[idx]
     
-    def get_problem_solution_pairs(self) -> List[Dict[str, str]]:
+    def get_problem_solution_pairs(self, use_cache: bool = True) -> List[Dict[str, str]]:
         """
         Extract problem-solution pairs from the dataset.
         
         This method processes the dataset to extract math problems and their solutions
         in a format suitable for downstream tasks.
         
+        Args:
+            use_cache: Whether to return cached pairs if available (default: True)
+        
         Returns:
             A list of dictionaries with 'problem' and 'solution' keys
         """
+        # Return cached pairs if available
+        if use_cache and self._cached_pairs is not None:
+            return self._cached_pairs
+        
         pairs = []
         
         for item in self.data:
@@ -198,14 +221,15 @@ class AoPSDataset:
                 problem = item.get("rewritten_question") or item.get("original_question", "")
                 solutions = item.get("rewritten_answers") or item.get("original_answers", [])
                 if problem and solutions:
-                    # Use the first answer as the solution
-                    solution = solutions[0] if isinstance(solutions, list) and solutions else str(solutions)
+                    solution = self._extract_first_solution(solutions)
                     pairs.append({
                         "problem": problem,
                         "solution": solution,
                         "metadata": item.get("metadata", {})
                     })
         
+        # Cache the pairs for reuse
+        self._cached_pairs = pairs
         return pairs
     
     def to_api_format(self) -> List[Dict[str, Any]]:
@@ -231,7 +255,7 @@ class AoPSDataset:
                 # Convert to conversational format
                 problem = item.get("rewritten_question") or item.get("original_question", "")
                 solutions = item.get("rewritten_answers") or item.get("original_answers", [])
-                solution = solutions[0] if isinstance(solutions, list) and solutions else str(solutions)
+                solution = self._extract_first_solution(solutions)
                 
                 api_data.append({
                     "messages": [
@@ -291,6 +315,7 @@ class AoPSDataset:
         """
         instance = cls()
         instance.data = []
+        instance._cached_pairs = None
         
         with open(filepath, 'r', encoding='utf-8') as f:
             for line in f:
@@ -343,6 +368,7 @@ class AoPSDataset:
         """
         instance = cls()
         instance.data = []
+        instance._cached_pairs = None
         
         sample_problems = [
             {
