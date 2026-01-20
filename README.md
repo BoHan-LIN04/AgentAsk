@@ -13,7 +13,7 @@ AgentAsk is a lightweight, plug-and-play clarifier that:
 ![taxonomy](assets/taxonomy.png)
 * Decides **when/what/whom/how** to ask using a factored policy.
 * Trains in two stages: **Supervised Fine-Tuning (SFT)** from failure traces and **E-GRPO** reinforcement for accuracy–latency–cost trade-offs.
-![pipeline](assets/pipline.png)
+![pipeline](assets/overview.png)
 
 
 ##  🧭 Quick Start
